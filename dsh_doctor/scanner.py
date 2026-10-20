@@ -71,6 +71,36 @@ class Backup:
 
 
 @dataclass
+class AttachmentFile:
+    """单个附件文件的 (路径, 大小, 修改时间)。
+
+    scanner 只记录事实，是否算"超期"由 rules 判断。
+    """
+
+    path: Path
+    size: int
+    mtime: float
+
+
+def collect_files(path: Path) -> List[AttachmentFile]:
+    """递归收集文件 (路径, 大小, mtime)。只读，不跟随软链接。"""
+    items: List[AttachmentFile] = []
+    for entry in os.scandir(str(path)):
+        try:
+            if entry.is_symlink():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                items.extend(collect_files(Path(entry.path)))
+            elif entry.is_file(follow_symlinks=False):
+                stat = entry.stat(follow_symlinks=False)
+                items.append(AttachmentFile(Path(entry.path), stat.st_size, stat.st_mtime))
+        except OSError:
+            continue
+    return items
+
+
+
+@dataclass
 class Scan:
     root: Path
     dirs: List[DirStat] = field(default_factory=list)
@@ -87,6 +117,7 @@ class Scan:
     disk_total: int = 0
     app_path: Optional[Path] = None
     app_version: Optional[str] = None
+    attachment_files: List[AttachmentFile] = field(default_factory=list)
 
     @property
     def total_size(self) -> int:
@@ -164,6 +195,10 @@ def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
                 attr,
                 sum(1 for e in os.scandir(str(path)) if e.is_dir(follow_symlinks=False)),
             )
+
+    attachments_dir = root / "attachments"
+    if attachments_dir.is_dir():
+        result.attachment_files = collect_files(attachments_dir)
 
     try:
         usage = shutil.disk_usage(str(root))
