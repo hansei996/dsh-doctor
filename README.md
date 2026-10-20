@@ -58,7 +58,8 @@ dsh-doctor --format markdown     # 贴到 issue / 文档里
 dsh-doctor --format html         # 单文件报告，浏览器直接打开
 dsh-doctor --older-than 30d      # 额外报告：超过 30 天的附件占多少
 dsh-doctor --fix --dry-run       # 先看会删什么，不真删
-dsh-doctor --fix                 # 执行安全清理
+dsh-doctor --fix                 # 列出将删内容，确认后清理
+dsh-doctor --fix --yes           # 跳过确认（脚本/非交互环境必需）
 dsh-doctor --top 10              # 看最大的 10 个文件（默认 5，0 关闭）
 dsh-doctor --history ./my.jsonl  # 指定历史文件
 dsh-doctor --no-history          # 不读不写历史，纯单次体检（缓存 + 旧备份）
@@ -108,7 +109,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ## 开发
 
 ```bash
-make test     # 93 个单测，纯标准库，不需要网络
+make test     # 101 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 

@@ -36,6 +36,9 @@ def build_parser():
     )
     parser.add_argument("--fix", action="store_true", help="执行安全清理（缓存 + 旧备份 + 超期附件）")
     parser.add_argument(
+        "--yes", action="store_true", help="与 --fix 一起用时跳过确认（非交互环境必需）"
+    )
+    parser.add_argument(
         "--older-than",
         metavar="30d",
         type=parse_older_than,
@@ -80,6 +83,23 @@ def _record(path, scan_result, findings):
     return delta
 
 
+def _confirm(fix_targets) -> bool:
+    """在交互终端里等一次确认。非交互环境返回 False（要求显式 --yes）。"""
+    try:
+        interactive = sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        interactive = False
+    if not interactive:
+        print("非交互环境，未执行清理；确认无误请加 --yes。", file=sys.stderr)
+        return False
+    try:
+        answer = input("确认清理？[y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer in ("y", "yes")
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
     root = Path(args.root).expanduser() if args.root else default_root()
@@ -99,26 +119,34 @@ def main(argv=None):
         if not targets:
             print("没有可安全清理的项目。")
             return 0
+        if args.dry_run:
+            for finding in targets:
+                print("[dry-run] 将清理 %s（%s）" % (finding.title, human(finding.reclaimable)))
+            return 0
+
+        print("将清理：")
+        for finding in targets:
+            print("  %-10s %s" % (finding.title, human(finding.reclaimable)))
+        print("合计 %s" % human(sum(f.reclaimable for f in targets)))
+        if not args.yes and not _confirm(targets):
+            return 0
+
         freed = 0
         for finding in targets:
-            if args.dry_run:
-                print("[dry-run] 将清理 %s（%s）" % (finding.title, human(finding.reclaimable)))
-                continue
             got = finding.fix() if finding.fix else 0
             freed += got
             print("已清理 %s，释放 %s" % (finding.title, human(got)))
-        if not args.dry_run:
-            current = scan(root)
-            if args.top <= 0:
-                current.largest_files = []
-            else:
-                current.largest_files = current.largest_files[: args.top]
-            findings = build_findings(current, args.older_than)
-            value = score(findings)
-            _record(history_path, current, findings)
-            print("共释放 %s，当前体积 %s，健康分 %d" % (human(freed), human(current.total_size), value))
-        return 0
 
+        current = scan(root)
+        if args.top <= 0:
+            current.largest_files = []
+        else:
+            current.largest_files = current.largest_files[: args.top]
+        findings = build_findings(current, args.older_than)
+        value = score(findings)
+        _record(history_path, current, findings)
+        print("共释放 %s，当前体积 %s，健康分 %d" % (human(freed), human(current.total_size), value))
+        return 0
 
     delta = _record(history_path, current, findings)
     if args.format == "json":
