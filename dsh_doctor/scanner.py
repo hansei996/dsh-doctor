@@ -3,6 +3,7 @@
 只读，不做任何删除；清理动作在 rules.fix 里，且只由 CLI 的 --fix 触发。
 """
 
+import heapq
 import os
 import shutil
 from dataclasses import dataclass, field
@@ -35,8 +36,15 @@ def human(size: float) -> str:
     return "%.1f PB" % size
 
 
-def dir_size(path: Path) -> Tuple[int, int]:
-    """返回 (总字节, 文件数)。软链接只计链接本身，不跟随。"""
+TOP_FILES_LIMIT = 50
+
+
+def dir_size(path: Path, heap=None, heap_limit: int = TOP_FILES_LIMIT) -> Tuple[int, int]:
+    """返回 (总字节, 文件数)。软链接只计链接本身，不跟随。
+
+    传入 heap 时会顺手收集最大的若干文件（小顶堆，堆顶是最小的那个），
+    这样只遍历一次就能同时拿到体积和"空间黑洞"。
+    """
     total = 0
     files = 0
     for entry in os.scandir(str(path)):
@@ -45,12 +53,17 @@ def dir_size(path: Path) -> Tuple[int, int]:
                 total += entry.stat(follow_symlinks=False).st_size
                 files += 1
             elif entry.is_dir(follow_symlinks=False):
-                sub_total, sub_files = dir_size(Path(entry.path))
+                sub_total, sub_files = dir_size(Path(entry.path), heap, heap_limit)
                 total += sub_total
                 files += sub_files
             elif entry.is_file(follow_symlinks=False):
-                total += entry.stat(follow_symlinks=False).st_size
+                size = entry.stat(follow_symlinks=False).st_size
+                total += size
                 files += 1
+                if heap is not None:
+                    heapq.heappush(heap, (size, entry.path))
+                    if len(heap) > heap_limit:
+                        heapq.heappop(heap)
         except OSError:
             continue
     return total, files
@@ -119,6 +132,7 @@ class Scan:
     app_path: Optional[Path] = None
     app_version: Optional[str] = None
     attachment_files: List[AttachmentFile] = field(default_factory=list)
+    largest_files: List[Tuple[str, int]] = field(default_factory=list)
 
     @property
     def total_size(self) -> int:
@@ -144,6 +158,7 @@ def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
     if not root.exists():
         return result
 
+    heap = []
     for entry in sorted(os.scandir(str(root)), key=lambda e: e.name):
         path = Path(entry.path)
         if not entry.is_dir(follow_symlinks=False):
@@ -152,8 +167,12 @@ def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
             except OSError:
                 pass
             continue
-        size, files = dir_size(path)
+        size, files = dir_size(path, heap)
         result.dirs.append(DirStat(entry.name, size, files))
+
+    result.largest_files = sorted(
+        ((path, size) for size, path in heap), key=lambda item: item[1], reverse=True
+    )
 
     result.dirs.sort(key=lambda d: d.size, reverse=True)
 

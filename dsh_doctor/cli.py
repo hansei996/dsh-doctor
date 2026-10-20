@@ -45,6 +45,13 @@ def build_parser():
         "--dry-run", action="store_true", help="与 --fix 一起用时只打印将清理什么"
     )
     parser.add_argument(
+        "--top",
+        metavar="N",
+        type=int,
+        default=5,
+        help="展示最大的 N 个文件（按单文件大小），默认 5，0 表示不展示",
+    )
+    parser.add_argument(
         "--history",
         metavar="PATH",
         help="体检历史文件路径，默认 ~/.dsh-doctor/history.jsonl（可用 DSH_DOCTOR_HISTORY 覆盖）",
@@ -79,6 +86,10 @@ def main(argv=None):
     history_path = _history_path(args)
 
     current = scan(root)
+    if args.top <= 0:
+        current.largest_files = []
+    else:
+        current.largest_files = current.largest_files[: args.top]
     findings = build_findings(current, args.older_than)
     value = score(findings)
     delta = None
@@ -98,6 +109,10 @@ def main(argv=None):
             print("已清理 %s，释放 %s" % (finding.title, human(got)))
         if not args.dry_run:
             current = scan(root)
+            if args.top <= 0:
+                current.largest_files = []
+            else:
+                current.largest_files = current.largest_files[: args.top]
             findings = build_findings(current, args.older_than)
             value = score(findings)
             _record(history_path, current, findings)

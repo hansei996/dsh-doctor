@@ -9,6 +9,30 @@ from .rules import MARK, Finding, grade, reclaimable
 from .scanner import Scan, human
 
 
+def _rel(scan: Scan, path) -> str:
+    prefix = str(scan.root).rstrip("/") + "/"
+    text = str(path)
+    return text[len(prefix):] if text.startswith(prefix) else text
+
+
+def _largest_html(scan: Scan) -> str:
+    if not scan.largest_files:
+        return ""
+    items = "\n".join(
+        '      <li><code>%s</code><span class="size">%s</span></li>'
+        % (html.escape(_rel(scan, path)), html.escape(human(size)))
+        for path, size in scan.largest_files
+    )
+    return '    <h2>空间 Top %d</h2>\n    <ul class="files">\n%s\n    </ul>' % (
+        len(scan.largest_files),
+        items,
+    )
+
+
+def _largest_lines(scan: Scan) -> List[str]:
+    return ["  %-9s %s" % (human(size), _rel(scan, path)) for path, size in scan.largest_files]
+
+
 def to_table(scan: Scan, findings: List[Finding], value: int, delta: str = None) -> str:
     width = max(len(f.title) for f in findings)
     top = " · ".join("%s %s" % (d.name, human(d.size)) for d in scan.dirs[:4])
@@ -20,6 +44,10 @@ def to_table(scan: Scan, findings: List[Finding], value: int, delta: str = None)
     ]
     if delta:
         lines.append("趋势：%s" % delta)
+    if scan.largest_files:
+        lines.append("")
+        lines.append("空间 Top %d（按单文件大小）" % len(scan.largest_files))
+        lines.extend(_largest_lines(scan))
     lines.append("")
     for finding in findings:
         lines.append(
@@ -45,16 +73,19 @@ def to_markdown(scan: Scan, findings: List[Finding], value: int, delta: str = No
         "体积分布：%s"
         % " · ".join("%s %s" % (d.name, human(d.size)) for d in scan.dirs[:4]),
         "",
-        ("**趋势**：%s" % delta) if delta else "",
-        "",
-        "| 状态 | 检查项 | 详情 | 建议 |",
-        "| --- | --- | --- | --- |",
     ]
+    if delta:
+        lines.extend(["**趋势**：%s" % delta, ""])
+    lines.extend(["| 状态 | 检查项 | 详情 | 建议 |", "| --- | --- | --- | --- |"])
     for finding in findings:
         lines.append(
             "| %s | %s | %s | %s |"
             % (MARK[finding.level], finding.title, finding.detail, finding.suggestion or "-")
         )
+    if scan.largest_files:
+        lines.extend(["", "**空间 Top %d**" % len(scan.largest_files), ""])
+        for path, size in scan.largest_files:
+            lines.append("- `%s` — %s" % (_rel(scan, path), human(size)))
     return "\n".join(lines)
 
 
@@ -65,6 +96,9 @@ def to_json(scan: Scan, findings: List[Finding], value: int, delta: str = None) 
         "grade": grade(value),
         "reclaimable_bytes": reclaimable(findings),
         "trend": delta,
+        "largest_files": [
+            {"path": _rel(scan, path), "size": size} for path, size in scan.largest_files
+        ],
         "total_bytes": scan.total_size,
         "findings": [
             {
@@ -84,6 +118,9 @@ def to_json(scan: Scan, findings: List[Finding], value: int, delta: str = None) 
 
 _HTML_STYLE = """
     .trend { color: #475569; font-size: 13px; margin: 0 0 8px; }
+    ul.files { list-style: none; padding: 0; margin: 0 0 16px; }
+    ul.files li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    ul.files .size { color: #64748b; white-space: nowrap; }
   * { box-sizing: border-box; }
   body { margin: 0; padding: 32px 24px 48px; background: #ffffff; color: #1f2328;
          font: 14px/1.6 -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
@@ -191,6 +228,8 @@ def to_html(scan: Scan, findings: List[Finding], value: int, delta: str = None) 
     <h2>体积分布</h2>
 %(bars)s
 
+%(largest)s
+
     <h2>检查项</h2>
     <table>
       <thead><tr><th>状态</th><th>检查项</th><th>详情</th><th>建议</th></tr></thead>
@@ -212,6 +251,7 @@ def to_html(scan: Scan, findings: List[Finding], value: int, delta: str = None) 
         "reclaim": html.escape(reclaim),
         "count": len(findings),
         "bars": "\n".join(bars),
+        "largest": _largest_html(scan),
         "rows": "\n".join(rows),
         "hint": hint,
         "trend": ('    <p class="trend">趋势：%s</p>' % html.escape(delta)) if delta else "",
