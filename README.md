@@ -10,7 +10,7 @@ DSH 运行时目录会长得很快：`profiles/` 和 `dsh-runtimes/` 动辄几�
 
 ```
 $ dsh-doctor --top 3
-dsh-doctor · /Users/junshengwu/.dsh
+dsh-doctor · ~/.dsh
 健康分 100/100  评级 A  可回收 3.4 MB
 体积分布：profiles 343.2 MB · dsh-runtimes 300.1 MB · extensions 12.4 MB · plugins 11.1 MB
 
