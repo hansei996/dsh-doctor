@@ -9,12 +9,17 @@
 DSH 运行时目录会长得很快：`profiles/` 和 `dsh-runtimes/` 动辄几百 MB，`attachments/` 里全是历史截图，`backups/` 每次更新都留一份。本地实测：
 
 ```
-$ dsh-doctor
+$ dsh-doctor --top 3
 dsh-doctor · /Users/junshengwu/.dsh
 健康分 100/100  评级 A  可回收 3.4 MB
 体积分布：profiles 343.2 MB · dsh-runtimes 300.1 MB · extensions 12.4 MB · plugins 11.1 MB
 
-✓ 主目录体积  678.1 MB（17 个子目录）
+空间 Top 3（按单文件大小）
+  115.8 MB  dsh-runtimes/dsh-primary-runtime/dependencies/node/bin/node
+  21.5 MB   dsh-runtimes/dsh-primary-runtime/dependencies/python/lib/python3.12/site-packages/numpy/.dylibs/libscipy_openblas64_.dylib
+  17.1 MB   dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3.12
+
+✓ 主目录体积  680.5 MB（17 个子目录）
         → profiles 与 dsh-runtimes 通常占大头
 ✓ 缓存目录   3.4 MB / 23 个文件
         → 可安全清理，下次启动会重建
@@ -22,13 +27,14 @@ dsh-doctor · /Users/junshengwu/.dsh
         → 数量正常
 ✓ 运行时    300.1 MB，1 个版本
         → 旧版本可在 DSH 更新后手动清理，工具不自动删
+✓ 版本一致性  应用 0.2.1-rc.2，runtime.json 记录 0.2.1-rc.2
 ✓ 附件     4.7 MB / 24 个文件
         → 截图与会话绑定，删前先确认会话是否还需要
 ✓ 凭据文件   权限 600
         → 应存在且权限为 600
-✓ 会话     2 个，最大 1.9 MB
+✓ 会话     2 个，最大 3.4 MB
         → 只在需要时清理
-✓ 磁盘余量   379.4 GB 可用 / 共 926.3 GB
+✓ 磁盘余量   380.9 GB 可用 / 共 926.3 GB
 ✓ 插件与扩展  1 个插件，1 个扩展
 
 可自动清理：缓存目录(3.4 MB)
