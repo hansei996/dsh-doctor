@@ -1,10 +1,22 @@
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from dsh_doctor import rules
-from dsh_doctor.rules import PROBLEM, WARN, build_findings, grade, reclaimable, score
-from dsh_doctor.scanner import Backup, DirStat, Scan
+from dsh_doctor.rules import (
+    OK,
+    PROBLEM,
+    WARN,
+    _delete_attachments,
+    _is_expired,
+    build_findings,
+    grade,
+    reclaimable,
+    score,
+)
+from dsh_doctor.scanner import AttachmentFile, Backup, DirStat, Scan
 
 
 ROOT = Path(tempfile.mkdtemp(prefix="dsh-doctor-test-"))
@@ -134,6 +146,75 @@ class VersionFindingTests(unittest.TestCase):
         baseline = score(build_findings(base_scan()))
         with_unknown = score(build_findings(base_scan(app_version=None, runtime_versions=[])))
         self.assertEqual(baseline, with_unknown)
+def make_attachment(path: Path, size: int, age_days: float) -> AttachmentFile:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * size)
+    stamp = time.time() - age_days * 86400
+    os.utime(str(path), (stamp, stamp))
+    return AttachmentFile(path, size, path.stat().st_mtime)
+
+
+class OlderThanTests(unittest.TestCase):
+    def test_boundary_is_inclusive(self):
+        now = 1_000_000_000.0
+        self.assertTrue(_is_expired(now - 30 * 86400, 30, now))
+        self.assertFalse(_is_expired(now - 30 * 86400 + 1, 30, now))
+
+    def test_default_call_has_no_extra_finding(self):
+        keys = [f.key for f in build_findings(base_scan())]
+        self.assertNotIn("attachments_old", keys)
+
+    def test_expired_files_are_reclaimable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = make_attachment(root / "attachments" / "x" / "old.bin", 100, 40)
+            fresh = make_attachment(root / "attachments" / "y" / "new.bin", 50, 10)
+            scan = base_scan()
+            scan.root = root
+            scan.attachment_files = [old, fresh]
+
+            findings = {f.key: f for f in build_findings(scan, older_than_days=30)}
+            finding = findings["attachments_old"]
+            self.assertEqual(finding.reclaimable, 100)
+            self.assertTrue(finding.fixable)
+            self.assertEqual(finding.level, WARN)
+            self.assertIn("30", finding.detail)
+
+    def test_all_fresh_is_not_fixable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fresh = make_attachment(root / "attachments" / "new.bin", 50, 3)
+            scan = base_scan()
+            scan.root = root
+            scan.attachment_files = [fresh]
+
+            findings = {f.key: f for f in build_findings(scan, older_than_days=30)}
+            finding = findings["attachments_old"]
+            self.assertEqual(finding.level, OK)
+            self.assertEqual(finding.reclaimable, 0)
+            self.assertFalse(finding.fixable)
+
+    def test_fix_deletes_only_expired_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = make_attachment(root / "attachments" / "x" / "old.bin", 100, 40)
+            fresh = make_attachment(root / "attachments" / "y" / "new.bin", 50, 10)
+            scan = base_scan()
+            scan.root = root
+            scan.attachment_files = [old, fresh]
+
+            finding = {f.key: f for f in build_findings(scan, older_than_days=30)}["attachments_old"]
+            freed = finding.fix()
+
+            self.assertEqual(freed, 100)
+            self.assertFalse(old.path.exists(), "超期文件应被删除")
+            self.assertTrue(fresh.path.exists(), "未超期的文件必须还在")
+            self.assertTrue((root / "attachments" / "x").is_dir(), "目录保留，避免影响会话引用")
+
+    def test_delete_attachments_tolerates_missing_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gone = AttachmentFile(Path(tmp) / "nope.bin", 10, time.time())
+            self.assertEqual(_delete_attachments([gone]), 0)
 
 
 if __name__ == "__main__":

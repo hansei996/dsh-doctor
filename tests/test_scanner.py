@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dsh_doctor.scanner import dir_size, human, scan
+from dsh_doctor.scanner import collect_files, dir_size, human, scan
 
 
 def make_file(path: Path, size: int) -> None:
@@ -58,6 +58,32 @@ class ScanTests(unittest.TestCase):
         result = scan(self.root / "nope")
         self.assertEqual(result.total_size, 0)
         self.assertEqual(result.dirs, [])
+
+
+class AttachmentCollectTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        make_file(self.root / "attachments" / "v1" / "a.webp", 120)
+        make_file(self.root / "attachments" / "v1" / "deep" / "b.png", 80)
+        make_file(self.root / "attachments" / "c.txt", 40)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_scan_collects_attachment_files_with_mtime(self):
+        result = scan(self.root)
+        sizes = sorted(item.size for item in result.attachment_files)
+        self.assertEqual(sizes, [40, 80, 120])
+        for item in result.attachment_files:
+            self.assertGreater(item.mtime, 0)
+            self.assertTrue(item.path.is_file())
+
+    def test_collect_files_is_read_only(self):
+        before = sorted(p.name for p in (self.root / "attachments").rglob("*"))
+        collect_files(self.root / "attachments")
+        after = sorted(p.name for p in (self.root / "attachments").rglob("*"))
+        self.assertEqual(before, after)
 
 
 if __name__ == "__main__":
