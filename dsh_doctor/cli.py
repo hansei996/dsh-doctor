@@ -48,6 +48,13 @@ def build_parser():
         "--dry-run", action="store_true", help="与 --fix 一起用时只打印将清理什么"
     )
     parser.add_argument(
+        "--fail-under",
+        metavar="SCORE",
+        type=float,
+        default=None,
+        help="健康分低于该值时以退出码 1 结束（默认只看 60 分线）",
+    )
+    parser.add_argument(
         "--top",
         metavar="N",
         type=int,
@@ -157,4 +164,8 @@ def main(argv=None):
         print(to_html(current, findings, value, delta))
     else:
         print(to_table(current, findings, value, delta))
-    return 0 if value >= 60 else 1
+    threshold = args.fail_under if args.fail_under is not None else 60
+    if value < threshold:
+        print("健康分 %s 低于门槛 %s" % (value, threshold), file=sys.stderr)
+        return 1
+    return 0

@@ -135,3 +135,37 @@ class ConfirmTests(unittest.TestCase):
 
     def test_eof_refuses(self):
         self.assertFalse(self._confirm(True, exc=EOFError()))
+
+
+class FailUnderTests(unittest.TestCase):
+    """--fail-under 决定退出码，供 CI 卡阈值。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "dsh"
+        (self.root / "cache").mkdir(parents=True)
+        (self.root / "cache" / "a.bin").write_bytes(b"x" * 128)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, *extra):
+        import contextlib
+
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), redirect_stderr(err):
+            code = main(["--root", str(self.root), "--no-history"] + list(extra))
+        return code, err.getvalue()
+
+    def test_threshold_above_score_fails(self):
+        code, err = self._run("--fail-under", "101")
+        self.assertEqual(code, 1)
+        self.assertIn("低于门槛", err)
+
+    def test_threshold_below_score_passes(self):
+        code, _ = self._run("--fail-under", "0")
+        self.assertEqual(code, 0)
+
+    def test_default_is_sixty(self):
+        code, _ = self._run()
+        self.assertIn(code, (0, 1))

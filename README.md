@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/hansei996/dsh-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/hansei996/dsh-doctor/actions/workflows/ci.yml)
 
+![dsh-doctor 输出示例](docs/screenshot.png)
+
 给 [DeepSeek Harness](https://github.com/) 的安装做体检：体积分布、可回收空间、凭据状态、插件与扩展、磁盘余量。
 
 一个命令看清 `~/.dsh` 到底把空间花在哪，并且能安全清掉其中"确定可以删"的部分。
@@ -69,6 +71,7 @@ dsh-doctor --fix --dry-run       # 先看会删什么，不真删
 dsh-doctor --fix                 # 列出将删内容，确认后清理
 dsh-doctor --fix --yes           # 跳过确认（脚本/非交互环境必需）
 dsh-doctor --top 10              # 看最大的 10 个文件（默认 5，0 关闭）
+dsh-doctor --fail-under 80       # 健康分低于 80 时退出码为 1（CI 卡阈值用）
 dsh-doctor --history ./my.jsonl  # 指定历史文件
 dsh-doctor --no-history          # 不读不写历史，纯单次体检（缓存 + 旧备份）
 dsh-doctor --fix --older-than 30d --dry-run   # 先看会删哪些历史附件
@@ -82,7 +85,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ```
 `--older-than` 只接受天（`30d` 或 `30`）。年龄**刚好等于** N 天的文件视为超期，会被清理。
 
-退出码：健康分 ≥ 60 返回 0，否则返回 1，方便接到 CI 或定时任务里。
+退出码：健康分 ≥ 60 返回 0，否则返回 1；用 `--fail-under N` 可以自定义这条线，方便接到 CI 或定时任务里（低于门槛时会在 stderr 说明实际分数）。
 
 ## 检查项
 
@@ -127,7 +130,7 @@ GitHub Actions 在 3.8 / 3.9 / 3.12 三个版本上跑（3.8、3.9 固定在 ubu
 ## 开发
 
 ```bash
-make test     # 103 个单测，纯标准库，不需要网络
+make test     # 106 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 
