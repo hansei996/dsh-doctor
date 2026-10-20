@@ -115,6 +115,15 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 
 以下目录**永不触碰**：`sessions/`、`memories/`、`profiles/`、`plugins/`、`extensions/`、`dsh-runtimes/`、`.credentials.yaml`。删除能力被收在 `rules.py` 的三个私有函数（`_clear_dir`、`_delete_backups`、`_delete_attachments`）里，单测覆盖了"该删的删掉、不该动的还在"。
 
+## CI
+
+GitHub Actions 在 3.8 / 3.9 / 3.12 三个版本上跑（3.8、3.9 固定在 ubuntu-22.04，因为 ubuntu-latest 已不再提供它们的预编译包）：
+
+1. `compileall` 确认无第三方依赖
+2. 全量单测
+3. 冒烟：table / json / html / `--older-than` 关键路径
+4. 专项：非交互 `--fix` 必须被拒绝，`--yes` 才真正删除
+
 ## 开发
 
 ```bash
