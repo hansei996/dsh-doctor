@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsh-doctor"
+version = "0.1.0"
+description = "DeepSeek Harness 安装体检与瘦身 CLI"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "hansei996" }]
+keywords = ["deepseek-harness", "dsh", "cli", "disk-usage", "devtools"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+dsh-doctor = "dsh_doctor.cli:main"
+
+[tool.setuptools]
+packages = ["dsh_doctor"]
