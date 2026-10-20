@@ -107,5 +107,34 @@ class FixTests(unittest.TestCase):
             self.assertEqual(remaining, ["mid", "new"])
 
 
+class VersionFindingTests(unittest.TestCase):
+    def findings(self, **overrides):
+        return {f.key: f for f in build_findings(base_scan(**overrides))}
+
+    def test_consistent_version_is_ok(self):
+        finding = self.findings(app_version="0.4.1", runtime_versions=["v0.4.7"])["version"]
+        self.assertEqual(finding.level, rules.OK)
+
+    def test_mismatch_is_warn(self):
+        finding = self.findings(app_version="0.5.0", runtime_versions=["0.4.2"])["version"]
+        self.assertEqual(finding.level, WARN)
+        self.assertIn("0.5", finding.detail)
+
+    def test_missing_app_degrades_to_ok(self):
+        finding = self.findings(app_version=None, runtime_versions=["0.4.2"])["version"]
+        self.assertEqual(finding.level, rules.OK)
+        self.assertIn("未找到", finding.detail)
+
+    def test_unversioned_runtime_degrades_to_ok(self):
+        finding = self.findings(app_version="0.2.1", runtime_versions=["dsh-primary-runtime"])["version"]
+        self.assertEqual(finding.level, rules.OK)
+        self.assertIn("不含版本号", finding.detail)
+
+    def test_unknown_version_does_not_change_score(self):
+        baseline = score(build_findings(base_scan()))
+        with_unknown = score(build_findings(base_scan(app_version=None, runtime_versions=[])))
+        self.assertEqual(baseline, with_unknown)
+
+
 if __name__ == "__main__":
     unittest.main()
