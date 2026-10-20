@@ -90,6 +90,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 | 凭据文件 | 是否存在、权限是否 600 | 否 |
 | 会话 | 数量与最大体积 | 否 |
 | 磁盘余量 | 少于 10 GB 时警告 | 否 |
+| 无法读取的目录 | 权限不足导致统计偏小时提示 | 否 |
 | 插件与扩展 | 数量统计 | 否 |
 
 除了一级目录体积，`--top N` 会列出最大的 N 个**单文件**并给出相对路径——`profiles/` 那 343 MB 到底是谁占的，一眼能看到（比如 `node/bin/node` 115 MB、`mermaid.min.js.map` 12 MB）。这一项只读，不参与清理判断。
@@ -109,7 +110,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ## 开发
 
 ```bash
-make test     # 101 个单测，纯标准库，不需要网络
+make test     # 103 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 

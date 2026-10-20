@@ -93,3 +93,38 @@ class AttachmentCollectTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PermissionRobustnessTests(unittest.TestCase):
+    """无权限目录不能让体检崩掉。"""
+
+    def setUp(self):
+        if os.geteuid() == 0:
+            self.skipTest("root 不受权限位限制")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "dsh"
+        locked = self.root / "profiles" / "locked"
+        locked.mkdir(parents=True)
+        (locked / "secret.bin").write_bytes(b"x" * 100)
+        (self.root / "cache").mkdir(parents=True)
+        (self.root / "cache" / "ok.bin").write_bytes(b"x" * 10)
+        os.chmod(str(locked), 0o000)
+        self.locked = locked
+
+    def tearDown(self):
+        os.chmod(str(self.locked), 0o755)
+        self.tmp.cleanup()
+
+    def test_scan_survives_unreadable_dir(self):
+        result = scan(self.root)
+        self.assertEqual(len(result.skipped_dirs), 1)
+        self.assertIn("locked", result.skipped_dirs[0])
+        self.assertTrue(result.dir("cache"))
+
+    def test_finding_reports_skipped_dirs(self):
+        from dsh_doctor.rules import WARN, build_findings
+
+        findings = {f.key: f for f in build_findings(scan(self.root))}
+        self.assertIn("skipped", findings)
+        self.assertEqual(findings["skipped"].level, WARN)
+        self.assertIn("1", findings["skipped"].detail)

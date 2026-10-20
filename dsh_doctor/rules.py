@@ -252,6 +252,17 @@ def build_findings(scan: Scan, older_than_days: Optional[int] = None) -> List[Fi
             )
         )
 
+    if scan.skipped_dirs:
+        findings.append(
+            Finding(
+                "skipped",
+                WARN,
+                "无法读取的目录",
+                "%d 个目录没有访问权限，统计可能偏小" % len(scan.skipped_dirs),
+                "检查目录权限；必要时用有权限的账号运行",
+            )
+        )
+
     findings.append(
         Finding(
             "addons",

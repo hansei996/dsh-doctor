@@ -39,7 +39,9 @@ def human(size: float) -> str:
 TOP_FILES_LIMIT = 50
 
 
-def dir_size(path: Path, heap=None, heap_limit: int = TOP_FILES_LIMIT) -> Tuple[int, int]:
+def dir_size(
+    path: Path, heap=None, heap_limit: int = TOP_FILES_LIMIT, skipped=None
+) -> Tuple[int, int]:
     """返回 (总字节, 文件数)。软链接只计链接本身，不跟随。
 
     传入 heap 时会顺手收集最大的若干文件（小顶堆，堆顶是最小的那个），
@@ -47,13 +49,20 @@ def dir_size(path: Path, heap=None, heap_limit: int = TOP_FILES_LIMIT) -> Tuple[
     """
     total = 0
     files = 0
-    for entry in os.scandir(str(path)):
+    try:
+        entries = list(os.scandir(str(path)))
+    except OSError:
+        # 无权限或目录刚被删：记下来继续，不让体检整体失败
+        if skipped is not None:
+            skipped.append(str(path))
+        return total, files
+    for entry in entries:
         try:
             if entry.is_symlink():
                 total += entry.stat(follow_symlinks=False).st_size
                 files += 1
             elif entry.is_dir(follow_symlinks=False):
-                sub_total, sub_files = dir_size(Path(entry.path), heap, heap_limit)
+                sub_total, sub_files = dir_size(Path(entry.path), heap, heap_limit, skipped)
                 total += sub_total
                 files += sub_files
             elif entry.is_file(follow_symlinks=False):
@@ -133,6 +142,7 @@ class Scan:
     app_version: Optional[str] = None
     attachment_files: List[AttachmentFile] = field(default_factory=list)
     largest_files: List[Tuple[str, int]] = field(default_factory=list)
+    skipped_dirs: List[str] = field(default_factory=list)
 
     @property
     def total_size(self) -> int:
@@ -167,7 +177,7 @@ def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
             except OSError:
                 pass
             continue
-        size, files = dir_size(path, heap)
+        size, files = dir_size(path, heap, skipped=result.skipped_dirs)
         result.dirs.append(DirStat(entry.name, size, files))
 
     result.largest_files = sorted(
