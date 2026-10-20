@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, history
 from .report import to_html, to_json, to_markdown, to_table
 from .rules import build_findings, grade, reclaimable, score
 from .scanner import default_root, human, scan
@@ -44,17 +44,44 @@ def build_parser():
     parser.add_argument(
         "--dry-run", action="store_true", help="与 --fix 一起用时只打印将清理什么"
     )
+    parser.add_argument(
+        "--history",
+        metavar="PATH",
+        help="体检历史文件路径，默认 ~/.dsh-doctor/history.jsonl（可用 DSH_DOCTOR_HISTORY 覆盖）",
+    )
+    parser.add_argument(
+        "--no-history", action="store_true", help="不读也不写历史，纯单次体检"
+    )
     parser.add_argument("--version", action="version", version="dsh-doctor " + __version__)
     return parser
+
+
+def _history_path(args):
+    if args.no_history:
+        return None
+    return Path(args.history).expanduser() if args.history else history.default_path()
+
+
+def _record(path, scan_result, findings):
+    """追加一次记录；拿不到就安静跳过。"""
+    if path is None:
+        return None
+    point = history.make_point(scan_result, reclaimable(findings))
+    previous = history.previous(history.load(path), point.ts)
+    delta = history.describe(previous, point)
+    history.append(path, point)
+    return delta
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     root = Path(args.root).expanduser() if args.root else default_root()
+    history_path = _history_path(args)
 
     current = scan(root)
     findings = build_findings(current, args.older_than)
     value = score(findings)
+    delta = None
 
     if args.fix:
         targets = [f for f in findings if f.fixable]
@@ -73,15 +100,18 @@ def main(argv=None):
             current = scan(root)
             findings = build_findings(current, args.older_than)
             value = score(findings)
+            _record(history_path, current, findings)
             print("共释放 %s，当前体积 %s，健康分 %d" % (human(freed), human(current.total_size), value))
         return 0
 
+
+    delta = _record(history_path, current, findings)
     if args.format == "json":
-        print(to_json(current, findings, value))
+        print(to_json(current, findings, value, delta))
     elif args.format == "markdown":
-        print(to_markdown(current, findings, value))
+        print(to_markdown(current, findings, value, delta))
     elif args.format == "html":
-        print(to_html(current, findings, value))
+        print(to_html(current, findings, value, delta))
     else:
-        print(to_table(current, findings, value))
+        print(to_table(current, findings, value, delta))
     return 0 if value >= 60 else 1

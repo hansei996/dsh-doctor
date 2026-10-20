@@ -9,7 +9,7 @@ from .rules import MARK, Finding, grade, reclaimable
 from .scanner import Scan, human
 
 
-def to_table(scan: Scan, findings: List[Finding], value: int) -> str:
+def to_table(scan: Scan, findings: List[Finding], value: int, delta: str = None) -> str:
     width = max(len(f.title) for f in findings)
     top = " · ".join("%s %s" % (d.name, human(d.size)) for d in scan.dirs[:4])
     lines = [
@@ -17,8 +17,10 @@ def to_table(scan: Scan, findings: List[Finding], value: int) -> str:
         "健康分 %d/100  评级 %s  可回收 %s"
         % (value, grade(value), human(reclaimable(findings))),
         "体积分布：%s" % (top or "-"),
-        "",
     ]
+    if delta:
+        lines.append("趋势：%s" % delta)
+    lines.append("")
     for finding in findings:
         lines.append(
             "%s %-*s  %s" % (MARK[finding.level], width, finding.title, finding.detail)
@@ -33,7 +35,7 @@ def to_table(scan: Scan, findings: List[Finding], value: int) -> str:
     return "\n".join(lines)
 
 
-def to_markdown(scan: Scan, findings: List[Finding], value: int) -> str:
+def to_markdown(scan: Scan, findings: List[Finding], value: int, delta: str = None) -> str:
     lines = [
         "# dsh-doctor：%s" % scan.root,
         "",
@@ -42,6 +44,8 @@ def to_markdown(scan: Scan, findings: List[Finding], value: int) -> str:
         "",
         "体积分布：%s"
         % " · ".join("%s %s" % (d.name, human(d.size)) for d in scan.dirs[:4]),
+        "",
+        ("**趋势**：%s" % delta) if delta else "",
         "",
         "| 状态 | 检查项 | 详情 | 建议 |",
         "| --- | --- | --- | --- |",
@@ -54,12 +58,13 @@ def to_markdown(scan: Scan, findings: List[Finding], value: int) -> str:
     return "\n".join(lines)
 
 
-def to_json(scan: Scan, findings: List[Finding], value: int) -> str:
+def to_json(scan: Scan, findings: List[Finding], value: int, delta: str = None) -> str:
     payload = {
         "root": str(scan.root),
         "score": value,
         "grade": grade(value),
         "reclaimable_bytes": reclaimable(findings),
+        "trend": delta,
         "total_bytes": scan.total_size,
         "findings": [
             {
@@ -78,6 +83,7 @@ def to_json(scan: Scan, findings: List[Finding], value: int) -> str:
 
 
 _HTML_STYLE = """
+    .trend { color: #475569; font-size: 13px; margin: 0 0 8px; }
   * { box-sizing: border-box; }
   body { margin: 0; padding: 32px 24px 48px; background: #ffffff; color: #1f2328;
          font: 14px/1.6 -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
@@ -117,7 +123,7 @@ _HTML_STYLE = """
 """
 
 
-def to_html(scan: Scan, findings: List[Finding], value: int) -> str:
+def to_html(scan: Scan, findings: List[Finding], value: int, delta: str = None) -> str:
     """单文件 HTML：内联样式、无外部资源、无 JS，可直接用浏览器打开或打印。"""
     root = html.escape(str(scan.root))
     reclaim = human(reclaimable(findings))
@@ -181,6 +187,7 @@ def to_html(scan: Scan, findings: List[Finding], value: int) -> str:
       <div class="stat"><div class="k">检查项</div><div class="v">%(count)d</div></div>
     </div>
 
+    %(trend)s
     <h2>体积分布</h2>
 %(bars)s
 
@@ -207,5 +214,6 @@ def to_html(scan: Scan, findings: List[Finding], value: int) -> str:
         "bars": "\n".join(bars),
         "rows": "\n".join(rows),
         "hint": hint,
+        "trend": ('    <p class="trend">趋势：%s</p>' % html.escape(delta)) if delta else "",
         "version": html.escape(__version__),
     }

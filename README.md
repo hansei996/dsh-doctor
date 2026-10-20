@@ -58,7 +58,9 @@ dsh-doctor --format markdown     # 贴到 issue / 文档里
 dsh-doctor --format html         # 单文件报告，浏览器直接打开
 dsh-doctor --older-than 30d      # 额外报告：超过 30 天的附件占多少
 dsh-doctor --fix --dry-run       # 先看会删什么，不真删
-dsh-doctor --fix                 # 执行安全清理（缓存 + 旧备份）
+dsh-doctor --fix                 # 执行安全清理
+dsh-doctor --history ./my.jsonl  # 指定历史文件
+dsh-doctor --no-history          # 不读不写历史，纯单次体检（缓存 + 旧备份）
 dsh-doctor --fix --older-than 30d --dry-run   # 先看会删哪些历史附件
 dsh-doctor --fix --older-than 30d             # 清掉超过 30 天的附件
 ```
@@ -88,6 +90,8 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 | 磁盘余量 | 少于 10 GB 时警告 | 否 |
 | 插件与扩展 | 数量统计 | 否 |
 
+每次运行会往 `~/.dsh-doctor/history.jsonl` 追加一条体积记录（最近 100 条），下次运行就能看到「较上次（3 天前）+12.3 MB」这样的趋势。路径可用 `--history` 或环境变量 `DSH_DOCTOR_HISTORY` 指定；`--no-history` 完全不碰磁盘。历史文件坏行会被跳过，不会影响体检。
+
 版本比较只取「主.次」两段做归一化，不做语义化排序——目的是判断"是不是同一代"，不是比大小。`:dsh-runtimes/<name>/runtime.json` 里的 `desktopVersion` 是权威来源，读不到时才退回目录名；两者都拿不到则输出「无法判断」，不影响健康分。
 
 ## 安全边界
@@ -101,7 +105,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ## 开发
 
 ```bash
-make test     # 61 个单测，纯标准库，不需要网络
+make test     # 84 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 
@@ -112,7 +116,8 @@ dsh_doctor/
   scanner.py   # 只读扫描：体积、文件数、凭据权限、磁盘、附件 mtime
   version.py   # 读应用包版本、归一化、与运行时目录比对
   rules.py     # 规则 → 结论 + 可回收字节 + 清理动作
-  report.py    # table / markdown / json 三种输出
+  report.py    # table / markdown / json / html 四种输出
+  history.py   # 体检历史（JSONL），用于对比体积趋势
   cli.py       # 参数与 --fix 流程
 ```
 
