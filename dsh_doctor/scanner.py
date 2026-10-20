@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from .version import app_path as default_app_path
+from .version import read_app_version
+
 # 已知子目录；未知目录也会被统计，只是没有专门规则
 KNOWN_DIRS = (
     "profiles",
@@ -82,6 +85,8 @@ class Scan:
     plugin_count: int = 0
     disk_free: int = 0
     disk_total: int = 0
+    app_path: Optional[Path] = None
+    app_version: Optional[str] = None
 
     @property
     def total_size(self) -> int:
@@ -98,9 +103,12 @@ def default_root() -> Path:
     return Path(os.environ.get("DSH_HOME") or (Path.home() / ".dsh"))
 
 
-def scan(root: Optional[Path] = None) -> Scan:
+def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
     root = Path(root or default_root()).expanduser()
     result = Scan(root=root)
+    # 应用包与 ~/.dsh 相互独立，默认取标准的 /Applications 位置，可被参数或环境变量覆盖
+    result.app_path = Path(app_root) if app_root is not None else default_app_path()
+    result.app_version = read_app_version(result.app_path)
     if not root.exists():
         return result
 
