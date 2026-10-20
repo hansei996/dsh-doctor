@@ -5,12 +5,14 @@ plugins / extensions / 凭据 一律只报告、不动手。
 """
 
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
 from .scanner import Backup, Scan, human
 from .version import compare
+from .scanner import AttachmentFile, Backup, Scan, human
 
 OK = "ok"
 WARN = "warn"
@@ -72,7 +74,24 @@ def _delete_backups(root: Path, backups: List[Backup]) -> int:
     return freed
 
 
-def build_findings(scan: Scan) -> List[Finding]:
+def _is_expired(mtime: float, days: int, now: float) -> bool:
+    """年龄刚好等于 N 天也算超期（>=），避免"第 30 天还留着"的歧义。"""
+    return (now - mtime) >= days * 86400
+
+
+def _delete_attachments(files: List[AttachmentFile]) -> int:
+    """只删传入的文件；空目录保留，避免误伤会话引用的路径。"""
+    freed = 0
+    for item in files:
+        try:
+            item.path.unlink()
+            freed += item.size
+        except OSError:
+            continue
+    return freed
+
+
+def build_findings(scan: Scan, older_than_days: Optional[int] = None) -> List[Finding]:
     findings: List[Finding] = []
     root = scan.root
 
@@ -171,6 +190,28 @@ def build_findings(scan: Scan) -> List[Finding]:
                 "附件",
                 "%s / %d 个文件" % (human(attachments.size), attachments.files),
                 "截图与会话绑定，删前先确认会话是否还需要",
+            )
+        )
+
+    if older_than_days and scan.attachment_files:
+        now = time.time()
+        expired = [
+            item
+            for item in scan.attachment_files
+            if _is_expired(item.mtime, older_than_days, now)
+        ]
+        expired_size = sum(item.size for item in expired)
+        findings.append(
+            Finding(
+                "attachments_old",
+                WARN if expired else OK,
+                "历史附件",
+                "%d 个文件超过 %d 天，共 %s" % (len(expired), older_than_days, human(expired_size))
+                if expired
+                else "没有超过 %d 天的附件" % older_than_days,
+                "用 --fix --older-than %dd 清理" % older_than_days if expired else "",
+                reclaimable=expired_size,
+                fix=(lambda items=list(expired): _delete_attachments(items)) if expired else None,
             )
         )
 
