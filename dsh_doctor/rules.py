@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from .scanner import Backup, Scan, human
+from .version import compare
 
 OK = "ok"
 WARN = "warn"
@@ -136,6 +137,28 @@ def build_findings(scan: Scan) -> List[Finding]:
                 "运行时",
                 "%s，%d 个版本" % (human(runtimes.size), len(scan.runtime_versions)),
                 "旧版本可在 DSH 更新后手动清理，工具不自动删",
+            )
+        )
+
+    state, version_detail = compare(scan.app_version, scan.runtime_versions)
+    if state == "warn":
+        findings.append(
+            Finding(
+                "version",
+                WARN,
+                "版本一致性",
+                version_detail,
+                "关闭并重开 DSH 会重新解包运行时；仍不一致时清理 ~/.dsh/dsh-runtimes 下的残留版本",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                "version",
+                OK,
+                "版本一致性",
+                version_detail,
+                "无法判断，不影响体检结论" if state == "unknown" else "",
             )
         )
 

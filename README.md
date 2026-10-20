@@ -59,6 +59,12 @@ dsh-doctor --fix --dry-run       # 先看会删什么，不真删
 dsh-doctor --fix                 # 执行安全清理
 ```
 
+应用包路径默认是 `/Applications/DeepSeek Harness.app`，装在别处时可以覆盖：
+
+```bash
+DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
+```
+
 退出码：健康分 ≥ 60 返回 0，否则返回 1，方便接到 CI 或定时任务里。
 
 ## 检查项
@@ -69,6 +75,7 @@ dsh-doctor --fix                 # 执行安全清理
 | 缓存目录 | 超过 50 MB 时提示 | **是**（清空内容，保留目录） |
 | 备份目录 | 超过 2 份的部分 | **是**（保留最近 2 份） |
 | 运行时 | 超过 500 MB 时提示 | 否，只报告 |
+| 版本一致性 | 应用包版本 vs `dsh-runtimes/` 目录版本 | 否，不一致时提示重启 |
 | 附件 | 超过 1 GB 时提示 | 否，与会话绑定 |
 | 凭据文件 | 是否存在、权限是否 600 | 否 |
 | 会话 | 数量与最大体积 | 否 |
@@ -84,7 +91,7 @@ dsh-doctor --fix                 # 执行安全清理
 ## 开发
 
 ```bash
-make test     # 14 个单测，纯标准库，不需要网络
+make test     # 36 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 
@@ -93,6 +100,7 @@ make demo     # 对本机 ~/.dsh 跑一遍
 ```
 dsh_doctor/
   scanner.py   # 只读扫描：体积、文件数、凭据权限、磁盘
+  version.py   # 读应用包版本、归一化、与运行时目录比对
   rules.py     # 规则 → 结论 + 可回收字节 + 清理动作
   report.py    # table / markdown / json 三种输出
   cli.py       # 参数与 --fix 流程
@@ -103,5 +111,5 @@ dsh_doctor/
 ## 路线图
 
 - [ ] 支持 `--older-than`，按天清理附件
-- [ ] 检测 DSH 版本与应用目录是否一致
+- [x] 检测 DSH 版本与应用目录是否一致
 - [ ] 输出 HTML 报告
