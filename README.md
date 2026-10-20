@@ -1,5 +1,7 @@
 # dsh-doctor
 
+[![CI](https://github.com/hansei996/dsh-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/hansei996/dsh-doctor/actions/workflows/ci.yml)
+
 给 [DeepSeek Harness](https://github.com/) 的安装做体检：体积分布、可回收空间、凭据状态、插件与扩展、磁盘余量。
 
 一个命令看清 `~/.dsh` 到底把空间花在哪，并且能安全清掉其中"确定可以删"的部分。

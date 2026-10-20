@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装检查（纯标准库，无依赖）
+        run: |
+          python -m compileall -q dsh_doctor
+          echo "OK：无第三方依赖"
+
+      - name: 单元测试
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: 冒烟运行（造一个假 DSH 目录）
+        run: |
+          set -e
+          ROOT="$RUNNER_TEMP/fake-dsh"
+          mkdir -p "$ROOT/cache" "$ROOT/attachments/2020-01"
+          head -c 4096 /dev/urandom > "$ROOT/cache/big.bin"
+          head -c 512 /dev/urandom > "$ROOT/attachments/2020-01/old.bin"
+          touch -t 202001010000 "$ROOT/attachments/2020-01/old.bin"
+
+          # 体检会因健康分低返回 1，这里只验证输出内容
+          python -m dsh_doctor --root "$ROOT" --no-history > out.txt || true
+          grep -q "健康分" out.txt
+          grep -q "空间 Top" out.txt
+          python -m dsh_doctor --root "$ROOT" --no-history --older-than 30d > old.txt || true
+          grep -q "历史附件" old.txt
+
+          python -m dsh_doctor --root "$ROOT" --no-history --format html > out.html || true
+          grep -q "DOCTYPE html" out.html
+
+          python -m dsh_doctor --root "$ROOT" --no-history --format json > out.json || true
+          python -c "import json;d=json.load(open('out.json'));assert 'findings' in d and 'score' in d;print('json ok, score =', d['score'])"
+
+      - name: 清理动作必须需要 --yes（非交互）
+        run: |
+          set -e
+          ROOT="$RUNNER_TEMP/fake-dsh2"
+          mkdir -p "$ROOT/cache"
+          head -c 1024 /dev/urandom > "$ROOT/cache/x.bin"
+          python -m dsh_doctor --root "$ROOT" --no-history --fix > refuse.txt 2> refuse.err || true
+          grep -q "非交互环境" refuse.err
+          test -f "$ROOT/cache/x.bin"
+          python -m dsh_doctor --root "$ROOT" --no-history --fix --yes > clean.txt || true
+          grep -q "已清理" clean.txt
