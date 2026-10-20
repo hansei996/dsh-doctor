@@ -29,7 +29,11 @@ class ScanTests(unittest.TestCase):
         make_file(self.root / "sessions" / "s2" / "log.jsonl", 500)
         make_file(self.root / "backups" / "old" / "f", 300)
         make_file(self.root / "backups" / "new" / "f", 100)
-        (self.root / "dsh-runtimes" / "v1").mkdir(parents=True)
+        runtime = self.root / "dsh-runtimes" / "dsh-primary-runtime"
+        runtime.mkdir(parents=True)
+        (runtime / "runtime.json").write_text(
+            '{"desktopVersion": "0.2.1-rc.2"}', encoding="utf-8"
+        )
         (self.root / "extensions" / "ext-a").mkdir(parents=True)
         (self.root / "plugins" / "p1").mkdir(parents=True)
         cred = self.root / ".credentials.yaml"
@@ -49,7 +53,8 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(result.dir("cache").size, 1500)
         self.assertEqual(result.session_count, 2)
         self.assertEqual(result.largest_session[0], "s1")
-        self.assertEqual(result.runtime_versions, ["v1"])
+        self.assertEqual(result.runtime_versions, ["dsh-primary-runtime"])
+        self.assertEqual(result.runtime_meta_versions, ["0.2.1-rc.2"])
         self.assertEqual(result.extension_count, 1)
         self.assertEqual(result.plugin_count, 1)
         self.assertEqual(result.credential_mode, 0o600)

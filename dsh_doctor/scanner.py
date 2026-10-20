@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .version import app_path as default_app_path
-from .version import read_app_version
+from .version import read_app_version, read_runtime_version
 
 # 已知子目录；未知目录也会被统计，只是没有专门规则
 KNOWN_DIRS = (
@@ -110,6 +110,7 @@ class Scan:
     session_count: int = 0
     largest_session: Optional[Tuple[str, int]] = None
     runtime_versions: List[str] = field(default_factory=list)
+    runtime_meta_versions: List[str] = field(default_factory=list)
     backups: List[Backup] = field(default_factory=list)
     extension_count: int = 0
     plugin_count: int = 0
@@ -175,9 +176,16 @@ def scan(root: Optional[Path] = None, app_root: Optional[Path] = None) -> Scan:
 
     runtimes_dir = root / "dsh-runtimes"
     if runtimes_dir.is_dir():
-        result.runtime_versions = sorted(
-            entry.name for entry in os.scandir(str(runtimes_dir)) if entry.is_dir()
-        )
+        names, metas = [], []
+        for entry in sorted(os.scandir(str(runtimes_dir)), key=lambda e: e.name):
+            if not entry.is_dir(follow_symlinks=False):
+                continue
+            names.append(entry.name)
+            version = read_runtime_version(Path(entry.path))
+            if version:
+                metas.append(version)
+        result.runtime_versions = names
+        result.runtime_meta_versions = metas
 
     backups_dir = root / "backups"
     if backups_dir.is_dir():

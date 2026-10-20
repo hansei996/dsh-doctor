@@ -159,7 +159,9 @@ def build_findings(scan: Scan, older_than_days: Optional[int] = None) -> List[Fi
             )
         )
 
-    state, version_detail = compare(scan.app_version, scan.runtime_versions)
+    state, version_detail = compare(
+        scan.app_version, scan.runtime_versions, scan.runtime_meta_versions
+    )
     if state == "warn":
         findings.append(
             Finding(
