@@ -55,8 +55,11 @@ dsh-doctor                       # 体检当前 ~/.dsh
 dsh-doctor --root /path/to/.dsh  # 指定目录（也支持 DSH_HOME 环境变量）
 dsh-doctor --format json         # 给脚本用
 dsh-doctor --format markdown     # 贴到 issue / 文档里
+dsh-doctor --older-than 30d      # 额外报告：超过 30 天的附件占多少
 dsh-doctor --fix --dry-run       # 先看会删什么，不真删
-dsh-doctor --fix                 # 执行安全清理
+dsh-doctor --fix                 # 执行安全清理（缓存 + 旧备份）
+dsh-doctor --fix --older-than 30d --dry-run   # 先看会删哪些历史附件
+dsh-doctor --fix --older-than 30d             # 清掉超过 30 天的附件
 ```
 
 应用包路径默认是 `/Applications/DeepSeek Harness.app`，装在别处时可以覆盖：
@@ -64,6 +67,7 @@ dsh-doctor --fix                 # 执行安全清理
 ```bash
 DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ```
+`--older-than` 只接受天（`30d` 或 `30`）。年龄**刚好等于** N 天的文件视为超期，会被清理。
 
 退出码：健康分 ≥ 60 返回 0，否则返回 1，方便接到 CI 或定时任务里。
 
@@ -77,6 +81,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 | 运行时 | 超过 500 MB 时提示 | 否，只报告 |
 | 版本一致性 | 应用包版本 vs `dsh-runtimes/` 目录版本 | 否，不一致时提示重启 |
 | 附件 | 超过 1 GB 时提示 | 否，与会话绑定 |
+| 历史附件（`--older-than N`） | 超过 N 天的附件占用与数量 | **是**（只删超期文件，未超期的不动） |
 | 凭据文件 | 是否存在、权限是否 600 | 否 |
 | 会话 | 数量与最大体积 | 否 |
 | 磁盘余量 | 少于 10 GB 时警告 | 否 |
@@ -84,9 +89,11 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 
 ## 安全边界
 
-`--fix` 只会做两件事：清空 `cache/`、删除最近两份之外的 `backups/`。
+`--fix` 只会做三件事：清空 `cache/`、删除最近两份之外的 `backups/`、在显式带上 `--older-than N` 时删除超过 N 天的附件文件。
 
-以下目录**永不触碰**：`sessions/`、`memories/`、`profiles/`、`plugins/`、`extensions/`、`dsh-runtimes/`、`attachments/`、`.credentials.yaml`。删除能力被收在 `rules.py` 的两个函数里，单测覆盖了"该删的删掉、不该动的还在"。
+不带 `--older-than` 时，`attachments/` 一个字节都不会动。带了也只删"超期文件"，目录结构保留（避免影响会话里引用的路径）。
+
+以下目录**永不触碰**：`sessions/`、`memories/`、`profiles/`、`plugins/`、`extensions/`、`dsh-runtimes/`、`.credentials.yaml`。删除能力被收在 `rules.py` 的三个私有函数（`_clear_dir`、`_delete_backups`、`_delete_attachments`）里，单测覆盖了"该删的删掉、不该动的还在"。
 
 ## 开发
 
@@ -99,7 +106,7 @@ make demo     # 对本机 ~/.dsh 跑一遍
 
 ```
 dsh_doctor/
-  scanner.py   # 只读扫描：体积、文件数、凭据权限、磁盘
+  scanner.py   # 只读扫描：体积、文件数、凭据权限、磁盘、附件 mtime
   version.py   # 读应用包版本、归一化、与运行时目录比对
   rules.py     # 规则 → 结论 + 可回收字节 + 清理动作
   report.py    # table / markdown / json 三种输出
@@ -112,4 +119,6 @@ dsh_doctor/
 
 - [ ] 支持 `--older-than`，按天清理附件
 - [x] 检测 DSH 版本与应用目录是否一致
+- [x] 支持 `--older-than`，按天清理附件
+- [ ] 检测 DSH 版本与应用目录是否一致
 - [ ] 输出 HTML 报告
