@@ -55,6 +55,7 @@ dsh-doctor                       # 体检当前 ~/.dsh
 dsh-doctor --root /path/to/.dsh  # 指定目录（也支持 DSH_HOME 环境变量）
 dsh-doctor --format json         # 给脚本用
 dsh-doctor --format markdown     # 贴到 issue / 文档里
+dsh-doctor --format html         # 单文件报告，浏览器直接打开
 dsh-doctor --older-than 30d      # 额外报告：超过 30 天的附件占多少
 dsh-doctor --fix --dry-run       # 先看会删什么，不真删
 dsh-doctor --fix                 # 执行安全清理（缓存 + 旧备份）
@@ -98,7 +99,7 @@ DSH_APP_PATH=/opt/dsh/DeepSeek\ Harness.app dsh-doctor
 ## 开发
 
 ```bash
-make test     # 36 个单测，纯标准库，不需要网络
+make test     # 61 个单测，纯标准库，不需要网络
 make demo     # 对本机 ~/.dsh 跑一遍
 ```
 
@@ -117,8 +118,7 @@ dsh_doctor/
 
 ## 路线图
 
-- [ ] 支持 `--older-than`，按天清理附件
-- [x] 检测 DSH 版本与应用目录是否一致
 - [x] 支持 `--older-than`，按天清理附件
-- [ ] 检测 DSH 版本与应用目录是否一致
-- [ ] 输出 HTML 报告
+- [x] 检测 DSH 版本与应用目录是否一致
+- [x] 输出 HTML 报告
+- [ ] 运行时目录写 `meta.json` 描述版本，摆脱"目录名不含版本号"的降级分支（见 issue #6）
