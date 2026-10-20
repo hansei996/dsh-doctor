@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .report import to_json, to_markdown, to_table
+from .report import to_html, to_json, to_markdown, to_table
 from .rules import build_findings, grade, reclaimable, score
 from .scanner import default_root, human, scan
 
@@ -31,7 +31,9 @@ def build_parser():
     parser.add_argument(
         "--root", help="DSH 主目录，默认 ~/.dsh，也可用环境变量 DSH_HOME"
     )
-    parser.add_argument("--format", choices=("table", "json", "markdown"), default="table")
+    parser.add_argument(
+        "--format", choices=("table", "json", "markdown", "html"), default="table"
+    )
     parser.add_argument("--fix", action="store_true", help="执行安全清理（缓存 + 旧备份 + 超期附件）")
     parser.add_argument(
         "--older-than",
@@ -78,6 +80,8 @@ def main(argv=None):
         print(to_json(current, findings, value))
     elif args.format == "markdown":
         print(to_markdown(current, findings, value))
+    elif args.format == "html":
+        print(to_html(current, findings, value))
     else:
         print(to_table(current, findings, value))
     return 0 if value >= 60 else 1
